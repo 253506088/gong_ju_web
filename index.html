@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发者工具箱</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" media="(prefers-color-scheme: dark)">
+    <!-- Libraries (loaded defer) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fast-xml-parser/4.2.5/fxp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+    <script src="https://unpkg.com/cronstrue@latest/dist/cronstrue-i18n.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+</head>
+
+<body>
+    <div id="app" v-cloak>
+        <div class="layout">
+            <!-- Sidebar -->
+            <aside :class="['sidebar', { collapsed: sidebarCollapsed }]">
+                <div class="logo">
+                    <icon-svg name="toolbox"></icon-svg>
+                    <span v-show="!sidebarCollapsed">DevTools</span>
+                </div>
+                <button class="sidebar-toggle" @click="toggleSidebar" :title="sidebarCollapsed ? '展开菜单' : '收起菜单'">
+                    <icon-svg :name="sidebarCollapsed ? 'chevron-right' : 'chevron-left'"></icon-svg>
+                </button>
+                <nav class="nav-menu">
+                    <button v-for="tab in tabs" :key="tab.id" :class="['nav-item', { active: currentTab === tab.id }]"
+                        @click="currentTab = tab.id" :title="sidebarCollapsed ? tab.name : ''">
+                        <icon-svg :name="tab.icon"></icon-svg>
+                        <span v-show="!sidebarCollapsed">{{ tab.name }}</span>
+                    </button>
+                </nav>
+                <div class="theme-toggle">
+                    <button @click="toggleTheme" :title="sidebarCollapsed ? '切换主题' : ''">
+                        <icon-svg :name="isDark ? 'sun' : 'moon'"></icon-svg>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="content">
+                <header v-if="currentTab !== 'diff'" class="header">
+                    <h1>{{ currentTabName }}</h1>
+                </header>
+
+                <div class="tool-container" :class="{ 'diff-mode': currentTab === 'diff' }">
+                    <!-- Base64 -->
+                    <div v-if="currentTab === 'base64'" class="tool-panel">
+                        <div class="input-group">
+                            <label>输入</label>
+                            <textarea v-model="base64.input" placeholder="在此输入内容..."></textarea>
+                        </div>
+                        <div class="actions">
+                            <button @click="base64Encode" class="btn primary">编码 <icon-svg
+                                    name="arrow-down"></icon-svg></button>
+                            <button @click="base64Decode" class="btn secondary">解码 <icon-svg
+                                    name="arrow-up"></icon-svg></button>
+                            <button @click="base64.input = ''; base64.output = ''" class="btn text">清空</button>
+                        </div>
+                        <div class="input-group">
+                            <label>输出</label>
+                            <textarea v-model="base64.output" readonly placeholder="结果将显示在这里..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- URL -->
+                    <div v-if="currentTab === 'url'" class="tool-panel">
+                        <div class="input-group">
+                            <label>输入 URL</label>
+                            <textarea v-model="url.input" placeholder="在此输入 URL..."></textarea>
+                        </div>
+                        <div class="actions">
+                            <button @click="urlEncode" class="btn primary">编码</button>
+                            <button @click="urlDecode" class="btn secondary">解码</button>
+                            <button @click="url.input = ''; url.output = ''" class="btn text">清空</button>
+                        </div>
+                        <div class="input-group">
+                            <label>输出</label>
+                            <textarea v-model="url.output" readonly></textarea>
+                        </div>
+                    </div>
+
+                    <!-- MD5 -->
+                    <div v-if="currentTab === 'md5'" class="tool-panel">
+                        <div class="input-group">
+                            <label>输入文本</label>
+                            <textarea v-model="md5.input" @input="calculateMD5" placeholder="在此输入文本..."></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label>MD5 Hash (32位)</label>
+                            <div class="result-box">
+                                <input type="text" v-model="md5.output" readonly>
+                                <button @click="copyToClipboard(md5.output)" class="btn icon"><icon-svg
+                                        name="copy"></icon-svg></button>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>MD5 Hash (16位)</label>
+                            <div class="result-box">
+                                <input type="text" v-model="md5.output16" readonly>
+                                <button @click="copyToClipboard(md5.output16)" class="btn icon"><icon-svg
+                                        name="copy"></icon-svg></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- JSON -->
+                    <div v-if="currentTab === 'json'" class="tool-panel">
+                        <div class="split-view">
+                            <div class="pane">
+                                <div class="pane-header">
+                                    <label>JSON 输入</label>
+                                    <div class="pane-actions">
+                                        <button @click="jsonFormat" class="btn small">格式化</button>
+                                        <button @click="jsonMinify" class="btn small">压缩</button>
+                                        <button @click="json.input = ''" class="btn small text">清空</button>
+                                    </div>
+                                </div>
+                                <textarea v-model="json.input" placeholder="粘贴 JSON..."></textarea>
+                            </div>
+                            <div class="pane">
+                                <div class="pane-header">
+                                    <label>结果 / 错误</label>
+                                    <button @click="copyToClipboard(json.output)" class="btn small icon"><icon-svg
+                                            name="copy"></icon-svg></button>
+                                </div>
+                                <textarea v-model="json.output" readonly :class="{ error: json.error }"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- XML <-> JSON -->
+                    <div v-if="currentTab === 'xmljson'" class="tool-panel">
+                        <div class="split-view">
+                            <div class="pane">
+                                <div class="pane-header">
+                                    <label>输入 (XML 或 JSON)</label>
+                                    <div class="pane-actions">
+                                        <button @click="xmlToJson" class="btn small">XML 转 JSON</button>
+                                        <button @click="jsonToXml" class="btn small">JSON 转 XML</button>
+                                        <button @click="xmljson.input = ''" class="btn small text">清空</button>
+                                    </div>
+                                </div>
+                                <textarea v-model="xmljson.input" placeholder="在此输入..."></textarea>
+                            </div>
+                            <div class="pane">
+                                <div class="pane-header">
+                                    <label>结果</label>
+                                    <button @click="copyToClipboard(xmljson.output)" class="btn small icon"><icon-svg
+                                            name="copy"></icon-svg></button>
+                                </div>
+                                <textarea v-model="xmljson.output" readonly
+                                    :class="{ error: xmljson.error }"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Diff -->
+                    <div v-if="currentTab === 'diff'" class="tool-panel diff-fullscreen">
+                        <div class="diff-container-fullscreen">
+                            <div class="diff-inputs-fullscreen">
+                                <div class="pane-fullscreen">
+                                    <label>原文 (Old)</label>
+                                    <div class="code-editor-wrapper">
+                                        <div class="line-numbers" ref="oldLineNumbers"></div>
+                                        <textarea v-model="diff.old" @input="updateLineNumbers" @scroll="syncScroll" data-pane="old" class="code-textarea" placeholder="原始文本..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="pane-fullscreen">
+                                    <label>新文 (New)</label>
+                                    <div class="code-editor-wrapper">
+                                        <div class="line-numbers" ref="newLineNumbers"></div>
+                                        <textarea v-model="diff.new" @input="updateLineNumbers" @scroll="syncScroll" data-pane="new" class="code-textarea" placeholder="修改后文本..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="actions center">
+                                <button @click="compareDiff" class="btn primary">对比差异</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Diff IDE -->
+                    <div v-if="currentTab === 'diffIde'" class="tool-panel diff-ide-panel">
+                        <div class="diff-ide-inputs">
+                            <div class="pane-fullscreen">
+                                <label>原文 (Old)</label>
+                                <div class="code-editor-wrapper">
+                                    <div class="line-numbers" ref="ideOldLineNumbers"></div>
+                                    <textarea v-model="diffIde.left"
+                                              class="code-textarea"
+                                              data-pane="ide-old"
+                                              @input="updateDiffIdeLineNumbers"
+                                              @scroll="syncIdeScroll"
+                                              placeholder="原始文本..."></textarea>
+                                </div>
+                            </div>
+                            <div class="pane-fullscreen">
+                                <label>新文 (New)</label>
+                                <div class="code-editor-wrapper">
+                                    <div class="line-numbers" ref="ideNewLineNumbers"></div>
+                                    <textarea v-model="diffIde.right"
+                                              class="code-textarea"
+                                              data-pane="ide-new"
+                                              @input="updateDiffIdeLineNumbers"
+                                              @scroll="syncIdeScroll"
+                                              placeholder="修改后文本..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="actions center">
+                            <button @click="compareDiffIde" class="btn primary">生成对比</button>
+                            <button @click="clearDiffIde" class="btn text">清空</button>
+                        </div>
+                        <div v-if="diffIdeRows.length" class="diff-ide-result">
+                            <div class="diff-ide-toolbar">
+                                <div class="diff-ide-stats">
+                                    <span>差异块：{{ diffIdeSummary.blocks }}</span>
+                                    <span>新增：+{{ diffIdeSummary.added }}</span>
+                                    <span>删除：-{{ diffIdeSummary.removed }}</span>
+                                </div>
+                                <div class="diff-ide-nav">
+                                    <button class="btn small" @click="jumpDiffIde(-1)" :disabled="!diffIdeChangeIndexes.length">上一处</button>
+                                    <button class="btn small" @click="jumpDiffIde(1)" :disabled="!diffIdeChangeIndexes.length">下一处</button>
+                                </div>
+                            </div>
+                            <div class="diff-ide-header">
+                                <div class="diff-ide-side">旧文本</div>
+                                <div class="diff-ide-side">新文本</div>
+                            </div>
+                            <div class="diff-ide-grid-wrapper">
+                                <div class="diff-ide-grid" ref="diffIdeGrid">
+                                    <div v-for="(row, index) in diffIdeRows"
+                                         :key="index"
+                                         class="diff-ide-row"
+                                         :class="['diff-ide-row--' + row.type, { 'is-active': index === diffIdeActiveIndex }]"
+                                         :data-diff-row="index">
+                                        <div class="diff-ide-cell line">
+                                            <span>{{ row.leftNumber }}</span>
+                                        </div>
+                                        <pre class="diff-ide-cell code" :class="'side-left'">{{ row.leftText }}</pre>
+                                        <div class="diff-ide-cell line">
+                                            <span>{{ row.rightNumber }}</span>
+                                        </div>
+                                        <pre class="diff-ide-cell code" :class="'side-right'">{{ row.rightText }}</pre>
+                                    </div>
+                                </div>
+                                <div class="diff-ide-minimap" :class="{ 'diff-ide-minimap--empty': !diffIdeMarkers.length }">
+                                    <button
+                                        v-for="(marker, index) in diffIdeMarkers"
+                                        :key="index"
+                                        type="button"
+                                        :class="['diff-ide-marker', `diff-ide-marker--${marker.type}`]"
+                                        :style="{ top: marker.position + '%' }"
+                                        :title="marker.title"
+                                        @click.stop="scrollToDiffIdeMarker(marker)">
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cron -->
+                    <div v-if="currentTab === 'cron'" class="tool-panel">
+                        <div class="cron-generator">
+                            <!-- Cron Tabs -->
+                            <div class="cron-tabs">
+                                <button v-for="unit in cronUnits" :key="unit.key"
+                                    :class="{ active: cronActiveUnit === unit.key }"
+                                    @click="cronActiveUnit = unit.key">{{ unit.label }}</button>
+                            </div>
+
+                            <!-- Cron Content -->
+                            <div class="cron-content">
+                                <div v-if="cronActiveUnit === 'second'">
+                                    <div class="cron-option"><label><input type="radio" v-model="cronState.second.type"
+                                                value="every"> 每秒 允许的通配符[, - * /]</label></div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.second.type" value="cycle">
+                                            周期从</label>
+                                        <input type="number" v-model="cronState.second.cycle.start" min="0" max="59"> -
+                                        <input type="number" v-model="cronState.second.cycle.end" min="0" max="59"> 秒
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.second.type" value="interval">
+                                            从</label>
+                                        <input type="number" v-model="cronState.second.interval.start" min="0" max="59">
+                                        秒开始，每
+                                        <input type="number" v-model="cronState.second.interval.step" min="1" max="59">
+                                        秒执行一次
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.second.type" value="specific">
+                                            指定</label>
+                                        <div class="checkbox-grid">
+                                            <label v-for="i in 60" :key="i-1"><input type="checkbox" :value="i-1"
+                                                    v-model="cronState.second.specific">{{ (i-1).toString().padStart(2,
+                                                '0') }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-if="cronActiveUnit === 'minute'">
+                                    <div class="cron-option"><label><input type="radio" v-model="cronState.minute.type"
+                                                value="every"> 每分 允许的通配符[, - * /]</label></div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.minute.type" value="cycle">
+                                            周期从</label>
+                                        <input type="number" v-model="cronState.minute.cycle.start" min="0" max="59"> -
+                                        <input type="number" v-model="cronState.minute.cycle.end" min="0" max="59"> 分
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.minute.type" value="interval">
+                                            从</label>
+                                        <input type="number" v-model="cronState.minute.interval.start" min="0" max="59">
+                                        分开始，每
+                                        <input type="number" v-model="cronState.minute.interval.step" min="1" max="59">
+                                        分执行一次
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.minute.type" value="specific">
+                                            指定</label>
+                                        <div class="checkbox-grid">
+                                            <label v-for="i in 60" :key="i-1"><input type="checkbox" :value="i-1"
+                                                    v-model="cronState.minute.specific">{{ (i-1).toString().padStart(2,
+                                                '0') }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-if="cronActiveUnit === 'hour'">
+                                    <div class="cron-option"><label><input type="radio" v-model="cronState.hour.type"
+                                                value="every"> 每小时 允许的通配符[, - * /]</label></div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.hour.type" value="cycle">
+                                            周期从</label>
+                                        <input type="number" v-model="cronState.hour.cycle.start" min="0" max="23"> -
+                                        <input type="number" v-model="cronState.hour.cycle.end" min="0" max="23"> 时
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.hour.type" value="interval">
+                                            从</label>
+                                        <input type="number" v-model="cronState.hour.interval.start" min="0" max="23">
+                                        时开始，每
+                                        <input type="number" v-model="cronState.hour.interval.step" min="1" max="23">
+                                        时执行一次
+                                    </div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.hour.type" value="specific">
+                                            指定</label>
+                                        <div class="checkbox-grid">
+                                            <label v-for="i in 24" :key="i-1"><input type="checkbox" :value="i-1"
+                                                    v-model="cronState.hour.specific">{{ (i-1).toString().padStart(2,
+                                                '0') }}</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-if="cronActiveUnit === 'day'">
+                                    <div class="cron-option"><label><input type="radio" v-model="cronState.day.type"
+                                                value="every"> 每日 允许的通配符[, - * / L W]</label></div>
+                                    <div class="cron-option"><label><input type="radio" v-model="cronState.day.type"
+                                                value="none"> 不指定 (?)</label></div>
+                                    <div class="cron-option">
+                                        <label><input type="radio" v-model="cronState.day.type" value="cycle">
+                                            周期从</label>
+                                        <input type="number" v-model="cronState.day.cycle.start" min="1" max="31"> -
+                                        <input type="number" v-model="cronState.day.cycle.end" min="1" max="31"> 日
+                                        }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="cronActiveUnit === 'month'">
+                                <div class="cron-option"><label><input type="radio" v-model="cronState.month.type"
+                                            value="every"> 每月 允许的通配符[, - * /]</label></div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.month.type" value="cycle">
+                                        周期从</label>
+                                    <input type="number" v-model="cronState.month.cycle.start" min="1" max="12"> -
+                                    <input type="number" v-model="cronState.month.cycle.end" min="1" max="12"> 月
+                                </div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.month.type" value="interval">
+                                        从</label>
+                                    <input type="number" v-model="cronState.month.interval.start" min="1" max="12">
+                                    月开始，每
+                                    <input type="number" v-model="cronState.month.interval.step" min="1" max="12">
+                                    月执行一次
+                                </div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.month.type" value="specific">
+                                        指定</label>
+                                    <div class="checkbox-grid">
+                                        <label v-for="i in 12" :key="i"><input type="checkbox" :value="i"
+                                                v-model="cronState.month.specific">{{ i.toString().padStart(2, '0')
+                                            }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="cronActiveUnit === 'week'">
+                                <div class="cron-option"><label><input type="radio" v-model="cronState.week.type"
+                                            value="every"> 每周 允许的通配符[, - * / L #]</label></div>
+                                <div class="cron-option"><label><input type="radio" v-model="cronState.week.type"
+                                            value="none"> 不指定 (?)</label></div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.week.type" value="cycle">
+                                        周期从星期</label>
+                                    <input type="number" v-model="cronState.week.cycle.start" min="1" max="7"> -
+                                    <input type="number" v-model="cronState.week.cycle.end" min="1" max="7">
+                                </div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.week.type" value="specific">
+                                        指定</label>
+                                    <div class="checkbox-grid">
+                                        <label v-for="i in 7" :key="i"><input type="checkbox" :value="i"
+                                                v-model="cronState.week.specific">{{ i }}</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="cronActiveUnit === 'year'">
+                                <div class="cron-option"><label><input type="radio" v-model="cronState.year.type"
+                                            value="every"> 每年 允许的通配符[, - * /] 非必填</label></div>
+                                <div class="cron-option"><label><input type="radio" v-model="cronState.year.type"
+                                            value="none"> 不指定</label></div>
+                                <div class="cron-option">
+                                    <label><input type="radio" v-model="cronState.year.type" value="cycle">
+                                        周期从</label>
+                                    <input type="number" v-model="cronState.year.cycle.start" min="2023" max="2099">
+                                    -
+                                    <input type="number" v-model="cronState.year.cycle.end" min="2023" max="2099">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Result -->
+                        <div class="cron-result-area">
+                            <label>Cron 表达式:</label>
+                            <div class="result-box">
+                                <input type="text" v-model="generatedCron">
+                                <button @click="copyToClipboard(generatedCron)" class="btn icon"><icon-svg
+                                        name="copy"></icon-svg></button>
+                            </div>
+                            <div class="cron-explanation-text">
+                                {{ cronExplanation }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timestamp -->
+                <div v-if="currentTab === 'timestamp'" class="tool-panel">
+                    <div class="input-group">
+                        <label>当前时间</label>
+                        <div class="result-box">
+                            <input type="text" :value="timestamp.now" readonly>
+                            <input type="text" :value="timestamp.nowUnix" readonly style="width: 150px">
+                            <button @click="updateNow" class="btn small"><icon-svg
+                                    name="rotate-right"></icon-svg></button>
+                        </div>
+                    </div>
+                    <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid var(--border-color);">
+                    <div class="split-view" style="height: auto;">
+                        <div class="pane" style="height: auto;">
+                            <label>Unix 时间戳 -> 日期</label>
+                            <div class="result-box">
+                                <input type="text" v-model="timestamp.unixInput" placeholder="Unix Timestamp">
+                                <button @click="unixToDate" class="btn primary">转换</button>
+                            </div>
+                            <input type="text" v-model="timestamp.dateOutput" readonly style="margin-top: 0.5rem;">
+                        </div>
+                        <div class="pane" style="height: auto;">
+                            <label>日期 -> Unix 时间戳</label>
+                            <div class="result-box">
+                                <input type="text" v-model="timestamp.dateInput" placeholder="YYYY-MM-DD HH:mm:ss">
+                                <button @click="dateToUnix" class="btn primary">转换</button>
+                            </div>
+                            <input type="text" v-model="timestamp.unixOutput" readonly style="margin-top: 0.5rem;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color -->
+                <div v-if="currentTab === 'color'" class="tool-panel">
+                    <div class="split-view" style="height: auto;">
+                        <div class="pane" style="height: auto;">
+                            <label>HEX -> RGB</label>
+                            <div class="result-box">
+                                <input type="text" v-model="color.hexInput" placeholder="#000000">
+                                <div
+                                    :style="{backgroundColor: color.hexInput, width: '40px', height: '40px', borderRadius: '8px', border: '1px solid var(--border-color)'}">
+                                </div>
+                            </div>
+                            <button @click="hexToRgb" class="btn primary" style="margin-top: 0.5rem;">转换</button>
+                            <input type="text" v-model="color.rgbOutput" readonly style="margin-top: 0.5rem;">
+                        </div>
+                        <div class="pane" style="height: auto;">
+                            <label>RGB -> HEX</label>
+                            <div class="result-box">
+                                <input type="text" v-model="color.rgbInput" placeholder="rgb(0, 0, 0)">
+                                <div
+                                    :style="{backgroundColor: color.rgbOutputHex, width: '40px', height: '40px', borderRadius: '8px', border: '1px solid var(--border-color)'}">
+                                </div>
+                            </div>
+                            <button @click="rgbToHex" class="btn primary" style="margin-top: 0.5rem;">转换</button>
+                            <input type="text" v-model="color.hexOutput" readonly style="margin-top: 0.5rem;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QRCode -->
+                <div v-if="currentTab === 'qrcode'" class="tool-panel center-content">
+                    <div class="input-group">
+                        <label>输入文本或链接</label>
+                        <input type="text" v-model="qrcode.input" placeholder="https://example.com">
+                    </div>
+                    <div class="actions">
+                        <button @click="generateQRCode" class="btn primary">生成二维码</button>
+                    </div>
+                    <div id="qrcode-container" class="qrcode-box"></div>
+                </div>
+
+        </div>
+        </main>
+
+        <!-- Toast Notification -->
+        <transition name="fade">
+            <div v-if="toast.show" class="toast">
+                {{ toast.message }}
+            </div>
+        </transition>
+
+        <!-- Diff Modal -->
+        <transition name="modal">
+            <div v-if="diffModalVisible" class="modal-overlay" @click="closeDiffModal">
+                <div class="modal-content" @click.stop>
+                    <div class="modal-header">
+                        <h2>对比结果</h2>
+                        <button class="modal-close" @click="closeDiffModal">
+                            <icon-svg name="close"></icon-svg>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="code-editor-wrapper">
+                            <div class="line-numbers" ref="resultLineNumbers"></div>
+                            <div class="diff-result" ref="diffResult" v-html="diff.result"></div>
+                            <div class="diff-minimap" :class="{ 'diff-minimap--empty': !diffMarkers.length }">
+                                <button
+                                    v-for="(marker, index) in diffMarkers"
+                                    :key="index"
+                                    type="button"
+                                    :class="['diff-marker', `diff-marker--${marker.type}`]"
+                                    :style="{ top: marker.position + '%' }"
+                                    :title="marker.type === 'added' ? '新增差异' : '删除差异'"
+                                    @click.stop="scrollToMarker(marker)">
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+    </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
