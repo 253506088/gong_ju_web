@@ -224,6 +224,7 @@ createApp({
         const diffIdeChangeIndexes = ref([]);
         const diffIdeActiveIndex = ref(-1);
         const diffIdeMarkers = ref([]);
+        const diffIdeLanguage = ref('text'); // 当前选中的语言
         
         // Refs for line numbers
         const oldLineNumbers = ref(null);
@@ -270,9 +271,52 @@ createApp({
             }
         };
         
+        // 简单的语法高亮函数
+        const highlightCode = (code, language) => {
+            if (!code) return '';
+            
+            // HTML 转义
+            let highlighted = code.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            
+            // JavaScript/JSON 高亮
+            if (language === 'javascript' || language === 'json') {
+                // 字符串高亮 (单引号和双引号)
+                highlighted = highlighted.replace(/(['"`])(?:(?=(\\?))\2.)*?\1/g, '<span class="token string">$&</span>');
+                
+                // 数字高亮
+                highlighted = highlighted.replace(/\b(\d+\.?\d*)\b/g, '<span class="token number">$1</span>');
+                
+                // 关键字高亮
+                const keywords = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'extends', 'import', 'export', 'from', 'new', 'this', 'true', 'false', 'null', 'undefined', 'async', 'await', 'try', 'catch', 'throw', 'typeof', 'instanceof', 'delete', 'void', 'break', 'continue', 'switch', 'case', 'default'];
+                const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+                highlighted = highlighted.replace(keywordPattern, '<span class="token keyword">$1</span>');
+                
+                // 注释高亮
+                highlighted = highlighted.replace(/\/\/.*$/gm, '<span class="token comment">$&</span>');
+                highlighted = highlighted.replace(/\/\*[\s\S]*?\*\//g, '<span class="token comment">$&</span>');
+                
+                // 函数名高亮
+                highlighted = highlighted.replace(/\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g, '<span class="token function">$1</span>');
+            }
+            
+            // SQL 高亮
+            else if (language === 'sql') {
+                const sqlKeywords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'TABLE', 'INDEX', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AND', 'OR', 'NOT', 'NULL', 'AS', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'OFFSET'];
+                const sqlPattern = new RegExp(`\\b(${sqlKeywords.join('|')})\\b`, 'gi');
+                highlighted = highlighted.replace(sqlPattern, '<span class="token keyword">$1</span>');
+                
+                highlighted = highlighted.replace(/(['"`])(?:(?=(\\?))\2.)*?\1/g, '<span class="token string">$&</span>');
+                highlighted = highlighted.replace(/\b(\d+)\b/g, '<span class="token number">$1</span>');
+                highlighted = highlighted.replace(/--.*$/gm, '<span class="token comment">$&</span>');
+            }
+            
+            return highlighted;
+        };
+        
         // Detect code language
         const detectLanguage = (text) => {
-            if (!text.trim()) return 'text';
             // Check for JSON
             if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
                 try {
@@ -466,7 +510,7 @@ createApp({
             return lines;
         };
 
-        const buildDiffIdeRows = (oldText, newText) => {
+        const buildDiffIdeRows = (oldText, newText, language) => {
             const diffs = Diff.diffLines(oldText, newText);
             let leftNumber = 1;
             let rightNumber = 1;
@@ -481,11 +525,36 @@ createApp({
                     rightNumber: hasRight ? rightNumber : '',
                     leftText: leftText ?? '',
                     rightText: rightText ?? '',
+                    leftTextHighlighted: '',
+                    rightTextHighlighted: '',
                     type
                 };
+                
+                // 添加语法高亮
+                if (leftText && language !== 'text') {
+                    row.leftTextHighlighted = highlightCode(leftText, language);
+                } else if (leftText) {
+                    row.leftTextHighlighted = escapeHtml(leftText);
+                }
+                
+                if (rightText && language !== 'text') {
+                    row.rightTextHighlighted = highlightCode(rightText, language);
+                } else if (rightText) {
+                    row.rightTextHighlighted = escapeHtml(rightText);
+                }
+                
                 if (hasLeft) leftNumber += 1;
                 if (hasRight) rightNumber += 1;
                 rows.push(row);
+            };
+            
+            // HTML 转义函数
+            const escapeHtml = (text) => {
+                return text.replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
             };
 
             const pushNeutralRow = (text) => {
@@ -593,14 +662,14 @@ createApp({
 
         const refreshDiffIdeMarkers = () => {
             nextTick(() => {
-                const grid = diffIdeGrid.value;
-                if (!grid) {
+                const leftPane = document.querySelector('.diff-ide-pane.left-pane');
+                if (!leftPane) {
                     diffIdeMarkers.value = [];
                     return;
                 }
 
-                const totalHeight = grid.scrollHeight || 1;
-                const rows = Array.from(grid.querySelectorAll('.diff-ide-row'));
+                const totalHeight = leftPane.scrollHeight || 1;
+                const rows = Array.from(leftPane.querySelectorAll('.diff-ide-row-single'));
                 const occupied = new Set();
                 const markers = [];
 
@@ -632,13 +701,19 @@ createApp({
         };
 
         const scrollToDiffIdeMarker = (marker) => {
-            const grid = diffIdeGrid.value;
-            if (!grid || !marker) return;
-            grid.scrollTop = marker.scrollTop;
+            const leftPane = document.querySelector('.diff-ide-pane.left-pane');
+            const rightPane = document.querySelector('.diff-ide-pane.right-pane');
+            if (!leftPane || !rightPane || !marker) return;
+            leftPane.scrollTop = marker.scrollTop;
+            rightPane.scrollTop = marker.scrollTop;
         };
 
         const compareDiffIde = () => {
-            const { rows, summary } = buildDiffIdeRows(diffIde.value.left, diffIde.value.right);
+            // 检测语言类型
+            const detectedLanguage = detectLanguage(diffIde.value.left || diffIde.value.right);
+            diffIdeLanguage.value = detectedLanguage;
+            
+            const { rows, summary } = buildDiffIdeRows(diffIde.value.left, diffIde.value.right, detectedLanguage);
             diffIdeRows.value = rows;
             diffIdeSummary.value = summary;
             diffIdeChangeIndexes.value = rows
@@ -648,15 +723,17 @@ createApp({
             nextTick(() => {
                 scrollToDiffIdeRow(diffIdeActiveIndex.value);
                 refreshDiffIdeMarkers();
+                syncDiffIdePaneScroll();
             });
         };
 
         const scrollToDiffIdeRow = (rowIndex) => {
             if (rowIndex === undefined || rowIndex === null || rowIndex < 0) return;
             nextTick(() => {
-                const grid = diffIdeGrid.value;
-                if (!grid) return;
-                const rowEl = grid.querySelector(`[data-diff-row="${rowIndex}"]`);
+                const leftPane = document.querySelector('.diff-ide-pane.left-pane');
+                const rightPane = document.querySelector('.diff-ide-pane.right-pane');
+                if (!leftPane || !rightPane) return;
+                const rowEl = leftPane.querySelector(`[data-diff-row="${rowIndex}"]`);
                 if (rowEl) {
                     rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
@@ -681,6 +758,56 @@ createApp({
             diffIdeChangeIndexes.value = [];
             diffIdeActiveIndex.value = -1;
             diffIdeMarkers.value = [];
+            diffIdeLanguage.value = 'text';
+        };
+        
+        // 语言切换处理
+        const onLanguageChange = () => {
+            if (!diffIdeRows.value.length) return;
+            
+            // 使用新语言重新构建对比结果
+            const { rows, summary } = buildDiffIdeRows(
+                diffIde.value.left, 
+                diffIde.value.right, 
+                diffIdeLanguage.value
+            );
+            diffIdeRows.value = rows;
+            diffIdeSummary.value = summary;
+            
+            nextTick(() => {
+                refreshDiffIdeMarkers();
+            });
+        };
+
+        // 同步左右两侧的横向滚动
+        const syncDiffIdePaneScroll = () => {
+            nextTick(() => {
+                const leftPane = document.querySelector('.diff-ide-pane.left-pane');
+                const rightPane = document.querySelector('.diff-ide-pane.right-pane');
+                
+                if (!leftPane || !rightPane) return;
+                
+                let isLeftScrolling = false;
+                let isRightScrolling = false;
+                
+                // 左侧滚动时同步右侧（横向和纵向）
+                leftPane.addEventListener('scroll', () => {
+                    if (isRightScrolling) return;
+                    isLeftScrolling = true;
+                    rightPane.scrollLeft = leftPane.scrollLeft;
+                    rightPane.scrollTop = leftPane.scrollTop;
+                    setTimeout(() => { isLeftScrolling = false; }, 10);
+                });
+                
+                // 右侧滚动时同步左侧（横向和纵向）
+                rightPane.addEventListener('scroll', () => {
+                    if (isLeftScrolling) return;
+                    isRightScrolling = true;
+                    leftPane.scrollLeft = rightPane.scrollLeft;
+                    leftPane.scrollTop = rightPane.scrollTop;
+                    setTimeout(() => { isRightScrolling = false; }, 10);
+                });
+            });
         };
 
         // --- Cron ---
@@ -925,6 +1052,7 @@ createApp({
             diff, compareDiff, diffModalVisible, closeDiffModal, updateLineNumbers, syncScroll,
             diffIde, diffIdeRows, diffIdeSummary, diffIdeActiveIndex, diffIdeChangeIndexes,
             compareDiffIde, clearDiffIde, jumpDiffIde, updateDiffIdeLineNumbers,
+            diffIdeLanguage, onLanguageChange,
             oldLineNumbers, newLineNumbers, resultLineNumbers, diffResult,
             ideOldLineNumbers, ideNewLineNumbers, diffIdeGrid, syncIdeScroll,
             diffIdeMarkers, scrollToDiffIdeMarker,

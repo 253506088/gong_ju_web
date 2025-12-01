@@ -231,6 +231,19 @@
                                     <span>新增：+{{ diffIdeSummary.added }}</span>
                                     <span>删除：-{{ diffIdeSummary.removed }}</span>
                                 </div>
+                                <div class="diff-ide-language-selector">
+                                    <label for="language-select">语言:</label>
+                                    <select id="language-select" v-model="diffIdeLanguage" @change="onLanguageChange" class="language-select">
+                                        <option value="text">纯文本</option>
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="json">JSON</option>
+                                        <option value="sql">SQL</option>
+                                        <option value="java">Java</option>
+                                        <option value="python">Python</option>
+                                        <option value="html">HTML</option>
+                                        <option value="css">CSS</option>
+                                    </select>
+                                </div>
                                 <div class="diff-ide-nav">
                                     <button class="btn small" @click="jumpDiffIde(-1)" :disabled="!diffIdeChangeIndexes.length">上一处</button>
                                     <button class="btn small" @click="jumpDiffIde(1)" :disabled="!diffIdeChangeIndexes.length">下一处</button>
@@ -241,20 +254,30 @@
                                 <div class="diff-ide-side">新文本</div>
                             </div>
                             <div class="diff-ide-grid-wrapper">
-                                <div class="diff-ide-grid" ref="diffIdeGrid">
-                                    <div v-for="(row, index) in diffIdeRows"
-                                         :key="index"
-                                         class="diff-ide-row"
-                                         :class="['diff-ide-row--' + row.type, { 'is-active': index === diffIdeActiveIndex }]"
-                                         :data-diff-row="index">
-                                        <div class="diff-ide-cell line">
-                                            <span>{{ row.leftNumber }}</span>
+                                <div class="diff-ide-pane-container">
+                                    <div class="diff-ide-pane left-pane">
+                                        <div v-for="(row, index) in diffIdeRows"
+                                             :key="'left-' + index"
+                                             class="diff-ide-row-single"
+                                             :class="['diff-ide-row--' + row.type, { 'is-active': index === diffIdeActiveIndex }]"
+                                             :data-diff-row="index">
+                                            <div class="diff-ide-cell line">
+                                                <span>{{ row.leftNumber }}</span>
+                                            </div>
+                                            <pre class="diff-ide-cell code side-left"><code v-html="row.leftTextHighlighted || row.leftText"></code></pre>
                                         </div>
-                                        <pre class="diff-ide-cell code" :class="'side-left'">{{ row.leftText }}</pre>
-                                        <div class="diff-ide-cell line">
-                                            <span>{{ row.rightNumber }}</span>
+                                    </div>
+                                    <div class="diff-ide-pane right-pane">
+                                        <div v-for="(row, index) in diffIdeRows"
+                                             :key="'right-' + index"
+                                             class="diff-ide-row-single"
+                                             :class="['diff-ide-row--' + row.type, { 'is-active': index === diffIdeActiveIndex }]"
+                                             :data-diff-row="index">
+                                            <div class="diff-ide-cell line">
+                                                <span>{{ row.rightNumber }}</span>
+                                            </div>
+                                            <pre class="diff-ide-cell code side-right"><code v-html="row.rightTextHighlighted || row.rightText"></code></pre>
                                         </div>
-                                        <pre class="diff-ide-cell code" :class="'side-right'">{{ row.rightText }}</pre>
                                     </div>
                                 </div>
                                 <div class="diff-ide-minimap" :class="{ 'diff-ide-minimap--empty': !diffIdeMarkers.length }">

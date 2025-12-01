@@ -471,7 +471,7 @@ input[type="text"]:focus {
 .diff-ide-panel {
     max-width: 100%;
     min-height: 0;
-    max-height: calc(100vh - 120px);
+    max-height: calc(100vh - 100px);
     overflow-y: auto;
 }
 
@@ -515,8 +515,8 @@ input[type="text"]:focus {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    /* 提高可视区域，约可显示 30 行，对视口做上限保护 */
-    max-height: calc(100vh - 200px);
+    /* 提高可视区域，约可显示 40 行，对视口做上限保护 */
+    max-height: 1000px;
     position: relative;
 }
 
@@ -538,6 +538,44 @@ input[type="text"]:focus {
     flex-wrap: wrap;
 }
 
+.diff-ide-language-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.diff-ide-language-selector label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.language-select {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.language-select:hover {
+    border-color: var(--accent-color);
+}
+
+.language-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.diff-ide-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .diff-ide-header {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -554,8 +592,8 @@ input[type="text"]:focus {
 
 .diff-ide-grid {
     flex: 1;
-    /* 提高高度以展示更多行（约 30 行），同时受外层 max-height 限制 */
-    max-height: 600px;
+    /* 提高高度以展示更多行（约 40 行），同时受外层 max-height 限制 */
+    max-height: 1000px;
     min-height: 200px;
     overflow: auto;
     font-family: 'Monaco', 'Consolas', monospace;
@@ -566,6 +604,136 @@ input[type="text"]:focus {
     display: flex;
     flex: 1;
     min-height: 0;
+}
+
+.diff-ide-pane-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    overflow: hidden;
+}
+
+.diff-ide-pane {
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color);
+}
+
+.diff-ide-pane.right-pane {
+    border-right: none;
+}
+
+.diff-ide-row-single {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    border-bottom: 1px solid var(--border-color);
+    min-height: 1.5rem;
+}
+
+.diff-ide-row {
+    display: grid;
+    grid-template-columns: 60px minmax(0, 1fr) 60px minmax(0, 1fr);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.diff-ide-cell {
+    padding: 0.35rem 0.5rem;
+    white-space: pre;
+    min-width: 0;
+}
+
+.diff-ide-row-single .diff-ide-cell.line {
+    border-right: 1px solid var(--border-color);
+}
+
+.diff-ide-cell.line {
+    text-align: right;
+    color: var(--text-secondary);
+    background-color: var(--bg-primary);
+    font-size: 0.8rem;
+    user-select: none;
+    white-space: normal;
+    flex-shrink: 0;
+}
+
+.diff-ide-cell.code {
+    background-color: var(--bg-secondary);
+    white-space: pre;
+    overflow-wrap: normal;
+}
+
+.diff-ide-cell.code code {
+    background: transparent;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+/* Prism.js 高亮样式优化 */
+.diff-ide-cell.code .token.comment,
+.diff-ide-cell.code .token.prolog,
+.diff-ide-cell.code .token.doctype,
+.diff-ide-cell.code .token.cdata {
+    color: #6a9955;
+}
+
+.diff-ide-cell.code .token.punctuation {
+    color: var(--text-primary);
+}
+
+.diff-ide-cell.code .token.property,
+.diff-ide-cell.code .token.tag,
+.diff-ide-cell.code .token.boolean,
+.diff-ide-cell.code .token.number,
+.diff-ide-cell.code .token.constant,
+.diff-ide-cell.code .token.symbol {
+    color: #b5cea8;
+}
+
+.diff-ide-cell.code .token.selector,
+.diff-ide-cell.code .token.attr-name,
+.diff-ide-cell.code .token.string,
+.diff-ide-cell.code .token.char,
+.diff-ide-cell.code .token.builtin {
+    color: #ce9178;
+}
+
+.diff-ide-cell.code .token.operator,
+.diff-ide-cell.code .token.entity,
+.diff-ide-cell.code .token.url,
+.diff-ide-cell.code .token.variable {
+    color: #d4d4d4;
+}
+
+.diff-ide-cell.code .token.atrule,
+.diff-ide-cell.code .token.attr-value,
+.diff-ide-cell.code .token.keyword,
+.diff-ide-cell.code .token.function,
+.diff-ide-cell.code .token.class-name {
+    color: #4ec9b0;
+}
+
+[data-theme="dark"] .diff-ide-cell.code .token.comment {
+    color: #6a9955;
+}
+
+[data-theme="dark"] .diff-ide-cell.code .token.string {
+    color: #ce9178;
+}
+
+[data-theme="dark"] .diff-ide-cell.code .token.keyword {
+    color: #569cd6;
+}
+
+[data-theme="dark"] .diff-ide-cell.code .token.function {
+    color: #dcdcaa;
+}
+
+[data-theme="dark"] .diff-ide-cell.code .token.number {
+    color: #b5cea8;
 }
 
 .diff-ide-minimap {
@@ -618,32 +786,6 @@ input[type="text"]:focus {
 
 [data-theme="dark"] .diff-ide-marker--changed {
     background-color: #facc15;
-}
-
-.diff-ide-row {
-    display: grid;
-    grid-template-columns: 60px calc(50% - 60px) 60px calc(50% - 60px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.diff-ide-cell {
-    padding: 0.35rem 0.5rem;
-    border-right: 1px solid var(--border-color);
-    /* 不换行，超出宽度时通过 diff-ide-grid 的横向滚动查看，保证左右两侧同步滚动 */
-    white-space: pre;
-}
-
-.diff-ide-cell.line {
-    text-align: right;
-    color: var(--text-secondary);
-    background-color: var(--bg-primary);
-    font-size: 0.8rem;
-    user-select: none;
-}
-
-.diff-ide-cell.code {
-    background-color: var(--bg-secondary);
 }
 
 .diff-ide-row:last-child {
