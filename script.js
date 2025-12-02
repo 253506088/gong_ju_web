@@ -61,6 +61,7 @@ createApp({
             { id: 'timestamp', name: '时间戳转换', icon: 'clock' },
             { id: 'color', name: '颜色转换', icon: 'palette' },
             { id: 'qrcode', name: '二维码生成', icon: 'qrcode' },
+            { id: 'sqlin', name: 'SQL IN格式化', icon: 'brackets-curly' },
         ];
         const currentTab = ref('base64');
         const currentTabName = computed(() => tabs.find(t => t.id === currentTab.value)?.name);
@@ -1037,6 +1038,52 @@ createApp({
             });
         };
 
+        // --- SQL IN Format ---
+        const sqlin = ref({ input: '', output: '' });
+        
+        const sqlInFormat = () => {
+            if (!sqlin.value.input.trim()) {
+                sqlin.value.output = '';
+                return;
+            }
+            
+            let text = sqlin.value.input.trim();
+            
+            // 如果已经是格式化的（包含引号和逗号），则还原
+            if (text.includes("'") && text.includes(",")) {
+                // 移除所有引号和逗号，保留换行
+                text = text.replace(/'/g, '').replace(/,/g, '');
+                sqlin.value.output = text.trim();
+            } else {
+                // 格式化：将每行或每个项添加引号和逗号
+                // 支持多种分隔符：换行、空格、逗号等
+                let items = text.split(/[\n\r]+/).map(line => line.trim()).filter(line => line);
+                
+                // 如果没有换行，尝试按空格分割
+                if (items.length === 1) {
+                    items = text.split(/\s+/).filter(item => item.trim());
+                }
+                
+                // 格式化为每行一条，带引号和逗号
+                sqlin.value.output = items.map(item => `'${item}'`).join(',\n');
+            }
+        };
+        
+        const sqlInRestore = () => {
+            if (!sqlin.value.input.trim()) {
+                sqlin.value.output = '';
+                return;
+            }
+            
+            let text = sqlin.value.input.trim();
+            
+            // 移除所有引号和逗号
+            text = text.replace(/'/g, '').replace(/"/g, '').replace(/,/g, '\n');
+            
+            // 清理多余的空行
+            sqlin.value.output = text.split('\n').map(line => line.trim()).filter(line => line).join('\n');
+        };
+
         return {
             tabs,
             currentTab,
@@ -1061,6 +1108,7 @@ createApp({
             timestamp, updateNow, unixToDate, dateToUnix,
             color, hexToRgb, rgbToHex,
             qrcode, generateQRCode,
+            sqlin, sqlInFormat, sqlInRestore,
             toast,
             sidebarCollapsed, toggleSidebar
         };

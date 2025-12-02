@@ -557,6 +557,26 @@
                     <div id="qrcode-container" class="qrcode-box"></div>
                 </div>
 
+                <!-- SQL IN Format -->
+                <div v-if="currentTab === 'sqlin'" class="tool-panel">
+                    <div class="input-group">
+                        <label>输入内容</label>
+                        <textarea v-model="sqlin.input" style="height: 300px !important; min-height: 300px !important; max-height: 300px !important; overflow: auto !important; resize: none !important; font-size: 1rem !important;" placeholder="输入需要格式化的内容，例如：&#10;YX-JCTK-20251106-003&#10;YX-JCTK-20251106-002&#10;YX-JCTK-20251106-001"></textarea>
+                    </div>
+                    <div class="actions">
+                        <button @click="sqlInFormat" class="btn primary">IN格式化</button>
+                        <button @click="sqlInRestore" class="btn secondary">格式化还原</button>
+                        <button @click="sqlin.input = ''; sqlin.output = ''" class="btn text">清空</button>
+                    </div>
+                    <div class="input-group">
+                        <div class="pane-header">
+                            <label>输出结果</label>
+                            <button @click="copyToClipboard(sqlin.output)" class="btn small icon" :disabled="!sqlin.output"><icon-svg name="copy"></icon-svg></button>
+                        </div>
+                        <textarea v-model="sqlin.output" style="height: 300px !important; min-height: 300px !important; max-height: 300px !important; overflow: auto !important; resize: none !important; font-size: 1rem !important;" readonly placeholder="结果将显示在这里..."></textarea>
+                    </div>
+                </div>
+
         </div>
         </main>
 
